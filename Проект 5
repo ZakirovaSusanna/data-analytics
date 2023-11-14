@@ -1,0 +1,67 @@
+Задание 1. Среди регулярных занятий (class_type = ‘regular’) какой процент был успешным (class_status = ‘success’)?
+select  cnt_status:: float/   all_cnt :: float * 100 as percent
+   from
+         (select class_status
+                  , count(*) over () as all_cnt
+                  , count (*) over (partition  by class_status ) as cnt_status
+        from skyeng_db.classes
+           where class_type = 'regular'
+         ) t
+   group by class_status, cnt_status, all_cnt
+   having class_status = 'success' 
+Задание 2. Рассчитайте распределение по странам количества учителей, у которых уровень или Advanced, или Intermediate. Ограничьтесь при выводе только теми странами, в которых количество учителей больше 10.
+Вывести: страна, количество учителей
+select   country
+            ,count (*) as cnt_teachers
+   from skyeng_db.teachers
+        where max_teaching_level = 'Advanced'
+          or max_teaching_level = 'Intermediate'
+ group by country
+  having count (*)  > 10
+Задание 3. Найдите количество регулярных уроков, которые были проведены в 2016 году и которые вели учителя, которых нет в таблице teachers.
+Вывести: одно число (количество уроков)
+select  count (*) as cnt
+       from skyeng_db.classes a
+               left join skyeng_db.teachers b
+              on a.id_teacher = b.id_teacher
+   where b.id_teacher is null
+               and date_part ( 'year', class_start_datetime) = 2016
+             and class_type = 'regular'
+          and class_status = 'success'
+Задание 4. Рассчитайте для каждого месяца проведения урока среднюю длительность одного урока. Возьмите только уроки, длившиеся больше 10 минут и меньше 120 минут.
+Вывести: месяц занятия, средняя длина занятия
+select       month
+                , avg (duration_lesson) as avg_lesson
+      From   (select date_trunc ('month', class_start_datetime )as month
+                     , (date_part ('hour', class_end_datetime )- date_part ('hour', class_start_datetime))* 60 + date_part          ('minute', class_end_datetime )- date_part ('minute', class_start_datetime) as duration_lesson
+        from skyeng_db.classes
+   where class_status ='success'
+                  ) t
+   where duration_lesson > 10 
+               and  duration_lesson < 120 
+     group by month
+Задание 5 Для каждого студента оставьте три его последних занятия и рассчитайте количество таких уроков для каждого уровня учителя (max_teaching_level).
+Вывести: уровень учителя, количество уроков
+
+select max_teaching_level  , count (id_class)
+       From     (select *,  row_number () over (partition by user_id order by id_class desc) 
+                        from skyeng_db.classes   
+                         where class_status = 'success') t
+        left join skyeng_db.teachers b
+          on t.id_teacher = b.id_teacher
+        where row_number <= 3
+         group by max_teaching_level
+Задание 6 Для каждого студента рассчитайте среднее время, которое проходит между уроками. Отранжируйте результат по возрастанию этого времени.
+Вывести: id студента, среднее время между уроками
+select user_id
+           , avg (delta_time) as avg_time
+      From  (select user_id
+                  , class_start_datetime
+             , class_start_datetime- lag (class_start_datetime) over (partition by user_id order by class_start_datetime) as delta_time                          
+         from skyeng_db.classes 
+              where class_status = 'success') t
+     where delta_time is not null
+        group by user_id  
+       order by avg_time
+
+
